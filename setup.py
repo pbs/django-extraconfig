@@ -13,4 +13,5 @@ setup(
     url='http://github.com/pbs/django-extraconfig/',
     license='BSD',
     py_modules=['extraconfig'],
+    data_files=['README.rst'],
 )

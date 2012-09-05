@@ -33,7 +33,7 @@ def load(entry_point_name, module_name):
             if not key.isupper():
                 continue
             if key.startswith(EXTRA_PREFIX):
-                key = key.lstrip(EXTRA_PREFIX)
+                key = key[len(EXTRA_PREFIX):]
                 new_value = _get_extended_value(key, settings_module, extra_module)
             else:
                 new_value = getattr(extra_module, key)

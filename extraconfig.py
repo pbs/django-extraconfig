@@ -1,26 +1,43 @@
 import pkg_resources
+import threading
 import sys
+import os
+
+_DJANGO_IMPORTS_SETTINGS_MULTIPLE_TIMES = threading.RLock()
+_already_imported = False
+
+_EXTRA_PREFIX = '_EXTRA_'
 
 
-EXTRA_PREFIX = '_EXTRA_'
+def looks_like_settings(key):
+    return key.isupper()
 
 
-def _get_extended_value(key, settings_module, extra_module):
-    if key not in dir(settings_module):
-        raise ValueError('Attempt to extend non-existing setting %s' % key)
-    existing_values = getattr(settings_module, key)
-    extra_values = getattr(extra_module, '%s%s' % (EXTRA_PREFIX, key))
-    if type(existing_values) != type(extra_values):
-        raise TypeError('Must have the same type')
-    if type(existing_values) in (tuple, list):
-        extended_values = existing_values + extra_values
-    elif type(existing_values) is dict:
-        extended_values = dict(
-            existing_values.items() + extra_values.items())
-    else:
-        raise TypeError(
-            '%s only works with tuples, lists and dicts' % EXTRA_PREFIX)
-    return extended_values
+def should_combine(key):
+    return key.startswith(_EXTRA_PREFIX)
+
+
+def original_key(extra_key):
+    return extra_key[len(_EXTRA_PREFIX):]
+
+
+def combine(original, extra):
+    try:
+        return original + extra
+    except TypeError:
+        pass
+    try:
+        return original | extra
+    except TypeError:
+        pass
+    try:
+        return dict(original.items() + extra.items())
+    except (AttributeError, TypeError):
+        pass
+    otype_name = type(original).__name__
+    etype_name = type(extra).__name__
+    err = "Can't combine types '%s' and '%s'." % (otype_name, etype_name)
+    raise TypeError(err)
 
 
 def load(entry_point_name, module_name):
@@ -29,12 +46,25 @@ def load(entry_point_name, module_name):
     settings_module = sys.modules[module_name]
     for entry_point in entry_points:
         extra_module = entry_point.load()
-        for key in dir(extra_module):
-            if not key.isupper():
+        msg = "loading overrides for entrypoint '%s' located in '%s'."
+        with _DJANGO_IMPORTS_SETTINGS_MULTIPLE_TIMES:
+            global _already_imported
+            if not _already_imported:
+                print >> sys.stderr, "Process %d:" % os.getpid(),
+                print >> sys.stderr, msg % (entry_point, extra_module.__file__)
+            _already_imported = True
+        for key, new_value in vars(extra_module).items():
+            if not looks_like_settings(key):
                 continue
-            if key.startswith(EXTRA_PREFIX):
-                key = key[len(EXTRA_PREFIX):]
-                new_value = _get_extended_value(key, settings_module, extra_module)
-            else:
-                new_value = getattr(extra_module, key)
+            if should_combine(key):
+                key = original_key(key)
+                try:
+                    original_value = getattr(settings_module, key)
+                except AttributeError:
+                    pass  # there's nothing to combine, act like override
+                else:
+                    try:
+                        new_value = combine(original_value, new_value)
+                    except TypeError as e:
+                        raise TypeError("While combining '%s': %s" % (key, e))
             setattr(settings_module, key, new_value)

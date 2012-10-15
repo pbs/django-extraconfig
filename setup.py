@@ -3,7 +3,7 @@ from setuptools import setup
 
 setup(
     name='django-extraconfig',
-    version='0.1',
+    version='0.2',
     description=('An entry-point based solution to extend'
                  'the Django configuration.'),
     long_description=open('README.rst').read(),

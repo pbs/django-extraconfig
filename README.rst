@@ -55,6 +55,21 @@ override::
 
     DEBUG = True
 
+Besides overriding settings you can also extend them by using the _EXTRA_ prefix
+in front of the usual setting name. If for example you wish to enable debug_toolbar
+in your development environment you could add::
+
+    _EXTRA_MIDDLEWARE_CLASSES = (
+        'debug_toolbar.middleware.DebugToolbarMiddleware',
+        )
+
+    _EXTRA_INSTALLED_APPS = (
+        'debug_toolbar',
+        )
+
+    INTERNAL_IPS = ('127.0.0.1',)
+
+
 Installing the extra configuration
 ==================================
 
